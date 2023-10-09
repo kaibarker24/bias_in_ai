@@ -1,0 +1,235 @@
+---
+title: "Image Tagging Bias"
+subtitle: "Team Extraordinary"
+author: "Nicole Gerber, Kai Barker, Baotao Yao, Isabella Benenati, Darrel Dartey"
+date: 5/5/2023
+format: 
+  revealjs:
+    incremental: true 
+editor: visual
+execute:
+  echo: false
+---
+
+## Topic and Motivation
+
+Today we will be investigating if there is an inherent bias in image tagging emotion analysis services (EAS) perpetuating racial stereotypes concerning emotion.
+
+-   Identifying and addressing racial bias in emotion analysis services is crucial for ensuring fairness, transparency, and accuracy in AI applications.
+
+-   Findings from this study can inform policy and industry guidelines, leading to more ethical and inclusive AI systems.
+
+## The Data {.smaller}
+
+-   The dataset consists of raw data collected from Emotion Analysis Services (EAS) and Crowdsourcing (Crowdworkers from the Appen Platform targeting US participants).
+
+-   The Chicago Face Database (CFD) is used as the primary dataset for testing the behavior of the target EAS.
+
+-   Both humans and EAS were shown images of people showing an emotion and were asked to guess what emotion that was.
+
+    ```{r}
+    #| label: the-data
+    #| layout-ncol: 2
+    #| column: page
+
+    #load packages
+    library(readxl)
+    library(dplyr)
+    library(tidyr)
+    library(stringr)
+    library(ggplot2)
+    library(skimr)
+
+    #dataframes
+    person_data_clean <- read.csv("data/person_data_clean.csv")
+    eas_data <- read.csv("data/eas_data.csv")
+    eas_data_clean <- read.csv("data/eas_data_clean.csv")
+    choice_correct_eas <- read.csv("data/choice_correct_eas.csv")
+
+    #prop of correct predictions for black men made by people
+    black_correct_person <- person_data_clean |>
+      select(-id, -city, -region, -second_choice, -would_not_use, 
+             -gender, -race) |>
+      filter(image_race == "Black", image_gender == "Male") |>
+      mutate(
+        correct = emotion == first_choice
+      )
+
+    #prop of correct predictions for black men made by EAS
+    black_correct_eas <- eas_data_clean |>
+      rowwise() |>
+      mutate(
+        value = max(c_across(SADNESS:HAPPINESS)),
+         PredictedEmotion = names(eas_data_clean)
+          [which.max(c_across(SADNESS:HAPPINESS)) + 2]
+        #https://stackoverflow.com/questions/30196495/how-to-use-dplyrs-summarize-and-which-to-lookup-min-max-values
+        ) |>
+      select(-SADNESS:-value) |>
+      mutate(Correct = Emotion == PredictedEmotion) |>
+      filter(str_detect(Target, "BM"))
+
+    #type 1 error of EAS
+    type1_eas <- black_correct_eas |>
+      filter(PredictedEmotion == "ANGER", Correct == FALSE)
+
+    #type 1 error of person
+    type1_person <- black_correct_person |>
+      filter(first_choice == "Anger", correct == FALSE)
+
+    probs <- eas_data |>
+      select(SADNESS:HAPPINESS)
+
+    preds <- colnames(probs)[apply(probs, 1, which.max)]
+
+    df <- eas_data |>
+      mutate(actual = factor(Emotion, levels= c("N" , "HC" ,"A",  "HO" ,"F" ), 
+                              labels=c('NEUTRAL', 'HAPPINESS', 'ANGER', 'HAPPINESS', 'FEAR'))) |>
+      mutate(predicted = preds) |>
+      mutate(accuracy = predicted == actual ) 
+
+    df |>
+      group_by(race) |>
+      summarise(mean(accuracy))
+
+      
+    df |>
+      count(race, actual)
+    ```
+
+## Highlights from Data Analysis {.smaller}
+
+First, we wanted to explore some more general patterns in the data through linear regression and bar plots. Below, we plotted the relationship between emotion and race(none, as expected), as well and the distribution of emotions for both the human and EAS datasets to observe the similarities.
+
+```{r}
+#| layout-ncol: 3
+#| column: page
+#| fig-width: 14
+#| fig-height: 12
+# Convert categorical variables to numeric
+person_data_clean_numeric <- person_data_clean |>
+  mutate(race_num = as.numeric(as.factor(image_race)),
+         emotion_num = as.numeric(as.factor(emotion)))
+
+# Perform a linear regression model
+regression_model <- lm(emotion_num ~ race_num, data = person_data_clean_numeric)
+
+ggplot(person_data_clean_numeric, aes(x = race_num, y = emotion_num)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", linetype = "solid") +
+  labs(x = "Race (numeric)", y = "Emotion (numeric)", title = "Linear Regression Model") +
+  theme_minimal()
+
+#person bar plots
+emotion_counts <- person_data_clean |>
+  filter(image_gender %in% c("Male", "Female")) |>
+  group_by(image_race, image_gender) |>
+  count(first_choice) |>
+  rename(emotion_count = n)
+
+ggplot(emotion_counts, aes(x = first_choice, y = emotion_count, fill = image_gender)) +
+  geom_bar(stat = "identity", position = "dodge", show.legend = FALSE) +
+  facet_grid(image_race ~ image_gender) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Person Test Emotion Counts by Race and Gender")
+
+#eas bar plots
+emotion_summary_race_gender <- eas_data |>
+  filter(race %in% c('Black', 'White')) |>
+  pivot_longer(cols = SADNESS:HAPPINESS, names_to = "emotion", values_to = "value") |>
+  group_by(race, gender, emotion) |>
+  summarise(mean = mean(value), sd = sd(value))
+
+ggplot(emotion_summary_race_gender, aes(x = emotion, y = mean, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge", show.legend = FALSE) +
+  facet_grid(rows = vars(gender), cols = vars(race)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "EAS Mean Emotion Value by Race and Gender")
+
+```
+
+## Analysis 1 {.smaller}
+
+For our first hypothesis, we wanted to determine if there was a significantly higher proportion of "false positive" angry decisions made by the Emotion Analysis Service as compared to real people making the same decisions.
+
+::: columns
+::: {.column width="50%"}
+Null Hypothesis: There is not a significantly higher proportion of "false positives" for incorrect angry decisions made by the EAS for black men as compared to real people making the decision
+
+$$
+H_0: p_1 - p_2 = 0
+$$
+:::
+
+::: {.column width="50%"}
+Alternative Hypothesis: There is a significantly higher proportion of "false positives" for incorrect angry decisions made by the EAS for black men as compared to real people making the decision.
+
+$$
+H_A: p_1 - p_2 \neq 0
+$$
+:::
+:::
+
+```{r}
+
+
+prop_test_angry <- prop.test(x = c(length(type1_eas), length(type1_person)),
+          n = c(length(eas_data_clean), length(person_data_clean)),
+          alternative = "two.sided")
+
+prop_test_angry
+
+```
+
+## Analysis 2 {.smaller}
+
+Here, we are visualizing the relationship between actual and predicted categories for different races using heatmaps. We also performed a chi-squared test to investigate if there is a statistically significant difference between actual and predicted categories for race. We hypothesized that the EAS would be bias and there would be differences in the results when comparing white vs. black.
+
+::: columns
+::: {.column width="50%"}
+Null Hypothesis: There is no statistically significant difference between actual and predicted categories for race.
+
+$$
+H_0: p_1 - p_2 = 0
+$$
+:::
+
+::: {.column width="50%"}
+Alternative Hypothesis: There is a statistically significant difference between actual and predicted categories for race.
+
+$$
+H_A: p_1 - p_2 \neq 0
+$$
+:::
+:::
+
+```{r}
+#| layout-ncol: 2
+#| column: page
+#| #| fig-width: 8
+#| fig-height: 4
+df |>
+  filter(race %in% c('Black', 'White')) |>
+  count(race, predicted, actual) |>
+  complete(predicted, actual, race, fill=list(n=0)) |>
+  ggplot(aes(x=actual, y=predicted, fill=n)) + geom_tile() + facet_wrap(~race) +
+  geom_text(aes(label=n), color='white')
+
+
+res <- data.frame()
+for (cat in unique(df$actual)){
+  cur <- df |>
+    filter(actual == cat, race %in% c('Black', 'White'))
+  comp <- chisq.test(table(cur$race, cur$predicted))
+  res <- bind_rows(res, data.frame(category=cat, statisitcs=comp$statistic, pvalue=comp$p.value))
+}
+res <- res |>
+  tibble::rownames_to_column() |>
+  select(-rowname)
+res
+```
+
+## Conclusions + future work {.smaller}
+
+-   To conclude, we failed to reject the null hypothesis for both analysis. We found that there was not enough evidence to conclude a significant difference in the proportion of false positive angry predictions between the two populations or between the actual and predicted categories for race.
+-   Despite these results, it is important to consider the flaws in the data such as the lack of data for the Asian and Latino categories.
+-   In the future, it would be interesting to look further into gender and explore any potential bias. For example, would there have been a more significant difference if we compared the results for black women compared to white women?

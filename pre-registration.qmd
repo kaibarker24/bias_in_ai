@@ -1,0 +1,42 @@
+---
+title: "Project title"
+subtitle: "Preregistration of analyses"
+format: html
+editor: visual
+execute:
+  echo: true
+---
+
+# Analysis #1
+
+Null Hypothesis: There is not a significantly higher proportion of "false positives" for incorrect angry decisions made by the EAS for black men as compared to real people making the decision
+
+Alternative Hypothesis: There is a significantly higher proportion of "false positives" for incorrect angry decisions made by the EAS for black men as compared to real people making the decision.
+
+Analysis: We can first perform calculations to filter and find the proportion of incorrect false positive angry choices in both the EAS data set and the real person responses. Then we can take these proportions and perform a two sample proportion test or bootstrapping in order to see if the p value is less than 0.05 to show significance.
+
+Visualization/Presentation: We can then take the two proportions and show them side by side on bar charts, and if there is a p value we can display the value to indicate a significant difference while showing if there is a true statistical difference in proportions between the EAS and real deciders.
+
+# Analysis #2
+
+Null Hypothesis: There is no significant difference in the emotion classification accuracy between image tagging emotion analysis services and human evaluators for different emotions.
+
+Alternative Hypothesis: There is a significant difference in the emotion classification accuracy between image tagging emotion analysis services and human evaluators for different emotions.
+
+Analysis: First, we will calculate the emotion classification accuracy for both image tagging emotion analysis services and human evaluators for each emotion (e.g., happiness, anger, fear, etc.). We will then calculate the 95% confidence interval using bootstrapping or other suitable methods. If the confidence interval for the difference in accuracy for any emotion does not contain zero, we can reject the null hypothesis and conclude that there is a significant difference in emotion classification accuracy between image tagging emotion analysis services and human evaluators for that particular emotion.
+
+Visualization/Presentation: To visualize the results, we can create a graph comparing the emotion classification accuracy for image tagging emotion analysis services for each emotion. The chart will display the accuracy of each group for every emotion, allowing for an easy comparison of their performance.
+
+Note: The preregistered analysis 1 and 2 were combined to both go into analysis 1, where we conducted a 95% confidence interval and performed a two sample prop test. This was decided before we actually conducted the tests, we just decided that the pre-registered analysis two just didn't end up making sense for what we were trying to conclude and it made more sense to combine both and create another analysis.
+
+# Analysis #3
+
+(pre-registration for analysis 2)
+
+Null Hypothesis: There is no statistically significant difference between actual and predicted categories for race.
+
+Alternative Hypothesis: There is a statistically significant difference between actual and predicted categories for race.
+
+Analysis: Conduct a chi-squared test to determine a difference in predicted vs actual for each emotion in the EAS data.
+
+Visualization: Make a heat map to show the amount of times that an emotion was guessed correctly or what emotion it was mostly confused with for both black and white.
